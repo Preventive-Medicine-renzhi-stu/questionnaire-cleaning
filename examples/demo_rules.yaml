@@ -1,0 +1,66 @@
+# 演示规则表 —— 配合 examples/demo_data.csv 使用
+#   Rscript scripts/qc_scan.R examples/demo_data.csv -r examples/demo_rules.yaml -o /tmp/demo_scan
+
+dataset: 演示问卷
+
+# ① 重复个案：按编号判定
+dupes:
+  key: [ID]
+
+# ④ 关键列不允许缺失
+missing:
+  key: [ID, SEX, AGE]
+
+# ⑤ 离群检查（auto = 自动识别真连续变量）
+outliers:
+  method: iqr
+  k: 1.5
+  columns: auto
+
+# ②③ 逐条规则
+rules:
+  - id: SEX_legal
+    check: in_set
+    column: SEX
+    values: [1, 2]
+    desc: 性别 1=男 2=女
+    severity: error
+
+  - id: SMOKE_legal
+    check: in_set
+    column: SMOKE
+    values: [0, 1]
+    desc: 吸烟 0=否 1=是
+    severity: error
+
+  - id: AGE_range
+    check: between
+    column: AGE
+    min: 6
+    max: 25
+    desc: 中学生年龄范围
+    severity: error
+
+  - id: HEIGHT_range
+    check: between
+    column: HEIGHT
+    min: 120
+    max: 210
+    desc: 身高（厘米）
+    severity: warning
+
+  - id: WEIGHT_range
+    check: between
+    column: WEIGHT
+    min: 20
+    max: 120
+    desc: 体重（公斤）
+    severity: warning
+
+  # 跨变量逻辑：收缩压必须高于舒张压
+  # 注意：缺失要显式放行，否则缺失也会被算成异常
+  - id: sbp_gt_dbp
+    check: expr
+    expr: "is.na(SBP) | is.na(DBP) | SBP > DBP"
+    desc: 收缩压应高于舒张压
+    severity: error

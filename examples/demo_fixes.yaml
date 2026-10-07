@@ -1,0 +1,75 @@
+# 演示修正指令 —— 配合 examples/demo_data.csv 使用
+#   Rscript scripts/qc_apply.R examples/demo_data.csv -f examples/demo_fixes.yaml -o /tmp/demo_clean
+#
+# 演示的正是本工具的核心原则：
+#   · 能确定的笔误 → 改值
+#   · 确定是错但不知正确值 → 置缺失（不留错值）
+#   · 需要回查原始问卷的 → 不写在这里
+
+dataset: 演示问卷
+
+fixes:
+
+  # ---- ① 重复个案：删掉重复行 ----
+  # 演示数据第 25 行的 ID 与第 7 行撞号，实际录入时重复了一遍。
+  # 这里按"置缺失"处理该行的 ID；真实场景通常应删除整行或核对原始问卷。
+  - id: dup_id
+    type: set_na
+    column: ID
+    desc: "第 25 行编号与第 7 行重复，置缺失待核对"
+    rows: [25]
+
+  # ---- ② 非法值：SEX = 3 ----
+  # 值域只有 1/2，无法判断应为哪一类 → 置缺失
+  - id: illegal_sex
+    type: set_na
+    column: SEX
+    desc: "性别录成 3（超出 1=男/2=女），无法判定正确值，置缺失"
+    rows: [10]
+
+  # ---- ③ 超范围：AGE = 200 ----
+  # 明显是漏了小数点或多了个 0，但无法确定是 20 还是 2.0 → 置缺失
+  - id: bad_age
+    type: set_na
+    column: AGE
+    desc: "年龄 200 明显录入错误，无法确定正确值，置缺失"
+    rows: [20]
+
+  # ---- ④ 异常身高：105 cm ----
+  # 结合年龄判断不可能（若为 165 则 BMI 正常），但无原始记录 → 置缺失
+  - id: bad_height
+    type: set_na
+    column: HEIGHT
+    desc: "身高 105cm 与年龄不符（疑漏录一位数字），无原始记录，置缺失"
+    rows: [30]
+
+  # ---- ⑤ 逻辑矛盾：SBP < DBP ----
+  # 哪个字段错无法判定，两个都置缺失比改错一个安全
+  - id: bp_contradiction
+    type: set_na
+    column: SBP
+    desc: "收缩压低于舒张压，无法判定哪个错，置缺失"
+    rows: [40]
+  - id: bp_contradiction2
+    type: set_na
+    column: DBP
+    desc: "收缩压低于舒张压，无法判定哪个错，置缺失"
+    rows: [40]
+
+  # ---- ⑥ 离群体重：155 kg ----
+  - id: outlier_weight
+    type: set_na
+    column: WEIGHT
+    desc: "体重 155kg 为极端离群，无原始记录，置缺失"
+    rows: [50]
+
+  # ---- ⑦ 派生列示例：把体重换算成克（演示 compute 类型）----
+  - id: weight_g
+    type: compute
+    column: WEIGHT_g
+    desc: "派生列：体重换算为克（演示用；真实分析通常不需要）"
+    expr: "ifelse(is.na(WEIGHT), NA, WEIGHT * 1000)"
+
+  # ---- ⑧ 缺失值不填 ----
+  # demo_data 中第 5、15、35 行有缺失（WEIGHT / BIRTH / SMOKE）。
+  # 本工具**不做任何填补** —— 需要填补时请说明填补方法后另行处理。

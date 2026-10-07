@@ -1,0 +1,79 @@
+# ============================================================
+#  qc_scan.R 规则表模板
+#  用法: Rscript qc_scan.R 数据.sav -r 本文件.yaml -o 输出目录
+#  以 # 开头的行是注释。不提供本文件时，脚本用全自动模式
+#  （重复判定用全部列；离群只扫自动识别的真连续变量）
+# ============================================================
+
+dataset: 问卷名称
+
+# ---- ① 重复个案：判定重复用哪些列 ----
+#   留空或删掉本段 = 用全部列判定（从严）
+#   通常填编号列，如 [ID] 或 [ID1, ID2]
+dupes:
+  key: [ID1]
+
+# ---- ④ 缺失值：这些列不允许缺失 ----
+#   一般填关键标识列。填了才会生成「关键列缺失行.csv」
+missing:
+  key: [ID1]
+
+# ---- ⑤ 连续变量离群 ----
+#   method: iqr    → 界值 = Q1-k*IQR, Q3+k*IQR（k=1.5 常用；3 为极端离群）
+#   method: zscore → 界值 = 均值 ± k 个标准差
+#   columns:
+#     auto        = 自动识别真连续变量（唯一值≥10 且非缺失≥100），**推荐**
+#     [AGE, HEIGHT, WEIGHT] = 手工指定
+#   ⚠ 不要让 columns 留空去扫「全部数值列」—— 二值/零膨胀变量会被大量误判
+outliers:
+  method: iqr
+  k: 1.5
+  columns: auto
+
+# ---- ②③ 逐条规则 ----
+rules:
+  # 分类变量取值必须在集合内（等价 EpiData 的 LEGAL）
+  - id: SEX_legal
+    check: in_set
+    column: SEX
+    values: [1, 2]
+    desc: 性别只能是 1=男 / 2=女
+    severity: error
+
+  # 数值范围（等价 EpiData 的 RANGE）
+  - id: AGE_range
+    check: between
+    column: AGE
+    min: 6
+    max: 25
+    desc: 中学生年龄范围
+    severity: warning
+
+  # 不允许缺失
+  - id: ID_not_null
+    check: not_null
+    column: ID1
+    desc: 编号必填
+    severity: error
+
+  # 正则匹配
+  - id: PHONE_regex
+    check: regex
+    column: MOBILE
+    values: ["^1[3-9][0-9]{9}$"]
+    desc: 手机号格式
+    severity: warning
+
+  # ---- 跨变量逻辑表达式（最重要的一类，需按问卷设计写）----
+  # expr 里可以直接用列名；返回 TRUE 表示通过，FALSE 的行会被列为异常。
+  # 缺失值请显式放行（否则缺失也会被算成异常）。
+
+  # - id: onset_after_birth
+  #   check: expr
+  #   expr: "is.na(ONSETDT) | is.na(BIRTHDT) | ONSETDT >= BIRTHDT"
+  #   desc: 发病日期不应早于出生日期
+
+  # - id: female_only_menses
+  #   check: expr
+  #   expr: "is.na(A4) | SEX == 2"
+  #   desc: 月经题只应由女生作答
